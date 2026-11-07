@@ -7,8 +7,6 @@
 
 **Vibe Physics** is a high-performance native physics engine for Horizon (Minecraft 26.3), written in pure Rust by **[cosmo-jar](https://github.com/cosmo-jar)**. It transforms static voxel environments into an immersive, dynamically reactive world with 144+ FPS performance, zero per-frame heap allocations, and zero JVM garbage collection pauses.
 
-Repository: [https://github.com/cosmo-jar/Vibe-Physics-Mod-for-Minecraft-on-Rust](https://github.com/cosmo-jar/Vibe-Physics-Mod-for-Minecraft-on-Rust)
-
 ---
 
 ## ✨ Features
@@ -87,9 +85,7 @@ This generates `vibe_physics-1.0.0.hnmod` with valid `horizon-native.json` manif
 
 ---
 
-## 👤 Author
-
-Developed by **[cosmo-jar](https://github.com/cosmo-jar)**  
+by **[cosmo-jar](https://github.com/cosmo-jar)**  
 GitHub: [https://github.com/cosmo-jar/Vibe-Physics-Mod-for-Minecraft-on-Rust](https://github.com/cosmo-jar/Vibe-Physics-Mod-for-Minecraft-on-Rust)
 
 ---
