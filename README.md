@@ -5,7 +5,7 @@
 [![Minecraft Version](https://img.shields.io/badge/Minecraft-26.3-brightgreen.svg)]()
 [![Engine](https://img.shields.io/badge/Engine-Horizon%20(Rust)-orange.svg)]()
 
-**Vibe Physics** is a high-performance native physics engine for Horizon (Minecraft 26.3), written in pure Rust. It transforms static voxel environments into an immersive, dynamically reactive world with 144+ FPS performance, zero per-frame heap allocations, and zero JVM garbage collection pauses.
+**Vibe Physics** is a high-performance native physics engine for Horizon (Minecraft 26.3), written in pure Rust. It transforms static voxel environments into an immersive, dynamically reactive world.
 
 <img width="1863" height="1024" alt="image" src="https://github.com/user-attachments/assets/0755e172-d65c-4a85-b8f1-e0bdd05ab317" />
 
