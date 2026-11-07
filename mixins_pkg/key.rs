@@ -1,0 +1,1 @@
+fn vp_key(game: &mut crate::game::Game<'_>, key: &str, pressed: bool) { crate::game::native_vibe_physics::on_key(game, key, pressed); }

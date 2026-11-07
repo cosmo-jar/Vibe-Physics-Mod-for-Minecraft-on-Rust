@@ -1,0 +1,1 @@
+fn vp_living_knockback(entity: i32, kind: &str, strength: f64, x: f64, z: f64) { crate::game::native_vibe_physics::on_living_knockback(entity, kind, strength, x, z); }

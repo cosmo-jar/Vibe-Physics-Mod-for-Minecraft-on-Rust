@@ -1,0 +1,1 @@
+fn vp_living_damage(entity: i32, kind: &str, amount: f32) { crate::game::native_vibe_physics::on_living_damage(entity, kind, amount); }

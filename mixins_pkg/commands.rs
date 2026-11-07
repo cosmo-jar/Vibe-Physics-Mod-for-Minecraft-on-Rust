@@ -1,0 +1,1 @@
+fn vp_commands(commands: &mut Vec<&'static str>) { commands.push("vp"); commands.push("vibephysics"); }

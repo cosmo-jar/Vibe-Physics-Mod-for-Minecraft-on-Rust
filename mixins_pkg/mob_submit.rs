@@ -1,0 +1,1 @@
+fn vp_mob_submit(game: &crate::game::Game<'_>, mob: &crate::game::NativeMobRender<'_>, draw: &mut crate::game::native_block_entity_draw::BlockEntityDraw, drawn: &mut bool) -> ::core::ops::ControlFlow<()> { if crate::game::native_vibe_physics::on_mob_submit(game, mob, draw) { *drawn = true; ::core::ops::ControlFlow::Break(()) } else { ::core::ops::ControlFlow::Continue(()) } }

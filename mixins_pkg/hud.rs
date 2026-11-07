@@ -1,0 +1,1 @@
+fn vp_hud(game: &mut crate::game::Game<'_>, batch: &mut crate::hud::HudBatch, corners: &mut crate::extras_hud::Corners) { crate::game::native_vibe_physics::on_hud(game, batch, corners); }

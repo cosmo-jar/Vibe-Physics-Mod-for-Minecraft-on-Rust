@@ -1,0 +1,40 @@
+[mod]
+id = "vibe_physics"
+version = "1.0.0"
+
+[compatibility]
+horizon_revision = "6475f62f3c834b7489e1816bf47f47ea5eb2b879"
+
+[api]
+path = "api"
+
+# Trait-level MODIFY_ARG injection into dropped item rendering (`item_draw.rs`).
+# Allows Vibe Physics to replace the vanilla bob-and-spin matrix (`pose`) with
+# a full 3D rigid-body quaternion orientation, surface-normal alignment, and
+# flat-resting offset while preserving item cluster rendering.
+[[injection]]
+id = "item_pose"
+target = "horizon_client::game::item_draw::Game<'_>::dropped_item_geometry"
+kind = "MODIFY_ARG"
+selector = "item_render::cluster_poses"
+require = 1
+ordinal = 0
+argument = 1
+trait_method = "item_pose"
+bindings = [
+    { name = "pose", ty = "glam::Mat4", value = "$value" },
+    { name = "id", ty = "u32", value = "item.id" },
+    { name = "stack", ty = "&crate::mod_api::ItemStack", value = "&item.stack" },
+    { name = "position", ty = "[f64; 3]", value = "[item.position.x, item.position.y, item.position.z]" },
+    { name = "previous", ty = "[f64; 3]", value = "[item.previous.x, item.previous.y, item.previous.z]" },
+    { name = "velocity", ty = "[f64; 3]", value = "[item.velocity.x, item.velocity.y, item.velocity.z]" },
+    { name = "camera_rel", ty = "[f32; 3]", value = "pos.as_vec3().to_array()" },
+    { name = "on_ground", ty = "bool", value = "item.on_ground" },
+    { name = "was_touching_water", ty = "bool", value = "item.was_touching_water" },
+    { name = "age", ty = "i32", value = "item.age" },
+    { name = "bob_offset", ty = "f32", value = "item.bob_offset" },
+    { name = "partial", ty = "f32", value = "partial" },
+    { name = "entity", ty = "bool", value = "entity" },
+    { name = "uses_block_light", ty = "bool", value = "state.uses_block_light()" },
+    { name = "min_offset_y", ty = "f32", value = "min_offset_y" },
+]
