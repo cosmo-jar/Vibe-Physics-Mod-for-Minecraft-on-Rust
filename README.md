@@ -7,6 +7,8 @@
 
 **Vibe Physics** is a high-performance native physics engine for Horizon (Minecraft 26.3), written in pure Rust. It transforms static voxel environments into an immersive, dynamically reactive world.
 
+![clip1](gif/clip.gif)
+
 <img width="1863" height="1024" alt="image" src="https://github.com/user-attachments/assets/0755e172-d65c-4a85-b8f1-e0bdd05ab317" />
 
 <img width="1862" height="1026" alt="image" src="https://github.com/user-attachments/assets/89e9fcd6-e8a0-4089-b8ec-d9303249e0de" />
