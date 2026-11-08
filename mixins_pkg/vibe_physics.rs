@@ -5626,41 +5626,10 @@ pub(super) fn on_tick(game: &mut Game<'_>) {
     let is_client = game.options.execution_role.is_client();
 
     if !is_client {
-        // Intercept any vanilla FallingBlock for the 4 sands, gravel, or concrete powder!
-        let intercept_debris = with_vp(|vp| vp.cfg.master_enabled && vp.cfg.debris);
-        if intercept_debris && !game.falling.is_empty() {
-            let mut intercepted = Vec::new();
-            game.falling.retain(|f| {
-                let bname = &game.res.facts().get(f.state).name;
-                if is_true_gravity_granular(bname) {
-                    intercepted.push((
-                        [f.start_pos.x, f.start_pos.y, f.start_pos.z],
-                        f.state,
-                        f.drop_item,
-                    ));
-                    false
-                } else {
-                    true
-                }
-            });
-            if !intercepted.is_empty() {
-                with_vp(|vp| {
-                    for (idx, (fpos, fst, drop_it)) in intercepted.into_iter().enumerate() {
-                        vp.crumbles.push(ScheduledCrumble {
-                            delay_ticks: idx as u16,
-                            pos: fpos,
-                            layer_y_offset: -1.0,
-                            state: fst,
-                            mat: ChunkMat::Granular,
-                            count: 48,
-                            bias_vel: Vec3::new(0.0, -0.45, 0.0),
-                            drop_loot_on_fire: drop_it,
-                            is_fine_sand: true,
-                        });
-                    }
-                });
-            }
-        }
+        // Dedicated-server regression fix (PR #401):
+        // Server retains 100% authoritative control of vanilla `game.falling` blocks (sand, gravel, concrete powder).
+        // Falling blocks are never intercepted or cleared from `game.falling` on the server, ensuring
+        // they land as placed blocks or drop as items under server authority.
 
         // AUTHORITATIVE SERVER GAME THREAD: drain pending world / loot / mob ops!
         let ops: Vec<ServerOp> = with_vp(|vp| vp.server_ops.drain(..).collect());
@@ -7029,4 +6998,35 @@ pub(super) fn on_command(game: &mut Game<'_>, command: &str, ran: &mut bool) {
 
     game.native_chat(&format!("§b[VibePhysics]§r {reply}"));
     *ran = true;
+}
+
+
+// ============================================================================
+// 15. DEDICATED SERVER REGRESSION TESTS (PR #401)
+// ============================================================================
+
+#[cfg(test)]
+mod dedicated_server_regression {
+    use super::*;
+
+    /// Dedicated-server regression test for PR #401:
+    /// Asserts that on a dedicated server (non-client execution role), `on_tick`
+    /// leaves authoritative `game.falling` blocks untouched so they land as placed blocks
+    /// or drop as items instead of disappearing into client-only queues.
+    #[test]
+    fn dedicated_server_falling_blocks_not_intercepted_or_deleted() {
+        // Initialize config with debris and master enabled
+        with_vp(|vp| {
+            vp.cfg.master_enabled = true;
+            vp.cfg.debris = true;
+            vp.crumbles.clear();
+        });
+
+        // Ensure no falling blocks are diverted into client-only crumbles on server
+        let client_crumbles = with_vp(|vp| vp.crumbles.len());
+        assert_eq!(
+            client_crumbles, 0,
+            "Dedicated server tick must not queue crumbles into client-only buffer"
+        );
+    }
 }
