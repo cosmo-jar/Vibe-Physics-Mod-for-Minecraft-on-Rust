@@ -209,3 +209,46 @@ helper = "item_collide.rs"
 bindings = [
   { name = "game", ty = "&crate::game::Game<'_>", value = "self" },
 ]
+
+[[injection]]
+id = "client_disconnecting"
+hook = "client_disconnecting"
+hook_version = 1
+kind = "HEAD"
+helper = "client_disconnecting.rs"
+bindings = [
+  { name = "game", ty = "&crate::game::Game<'_>", value = "self" },
+]
+
+[[injection]]
+id = "client_level_unload"
+hook = "client_level_unload"
+hook_version = 1
+kind = "HEAD"
+helper = "client_level_unload.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "dimension", ty = "&str", value = "dimension" },
+]
+
+[[injection]]
+id = "level_unload"
+hook = "level_unload"
+hook_version = 1
+kind = "HEAD"
+helper = "level_unload.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "dimension", ty = "&str", value = "dimension" },
+]
+
+[[injection]]
+id = "entity_tick_listened"
+hook = "entity_tick_listened"
+hook_version = 1
+kind = "HEAD"
+helper = "entity_tick_listened.rs"
+bindings = [
+  { name = "game", ty = "&mut crate::game::Game<'_>", value = "&mut *self" },
+  { name = "listened", ty = "&mut bool", value = "&mut *listened" },
+]
