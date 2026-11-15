@@ -93,7 +93,7 @@ Build the `.hnmod` bundle with:
 ```bash
 python package.py
 ```
-This generates `vibe_physics-1.0.0.hnmod` with valid `horizon-native.json` manifest and computes its SHA-256 checksum.
+This generates `vibe_physics-1.0.1.hnmod` with valid `horizon-native.json` manifest and computes its SHA-256 checksum.
 
 ---
 
