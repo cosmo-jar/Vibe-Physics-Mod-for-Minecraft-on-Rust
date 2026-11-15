@@ -21,6 +21,7 @@ use horizon_client::{
     hud::{HudBatch, Rect},
     item_render,
     items::ItemStack,
+    lang,
     mesher::Vertex,
     mobs::{Mob, Part, Species},
     particles::{ParticleOptions, ParticleType},
@@ -81,6 +82,7 @@ pub mod config {
         pub gravity: f32,
         pub menu_open: bool,
         pub menu_selected_idx: usize,
+        pub settings_loaded: bool,
     }
 
     impl Default for VibeConfig {
@@ -97,62 +99,175 @@ pub mod config {
                 gravity: 25.0,
                 menu_open: false,
                 menu_selected_idx: 0,
+                settings_loaded: false,
             }
         }
     }
 
     impl VibeConfig {
-        pub fn toggle_by_index(&mut self, idx: usize) -> (&'static str, bool) {
-            match idx {
-                0 => {
-                    self.building_collapse = !self.building_collapse;
-                    ("Обрушение зданий и конструкций", self.building_collapse)
-                }
-                1 => {
-                    self.tree_felling = !self.tree_felling;
-                    ("Валка деревьев", self.tree_felling)
-                }
-                2 => {
-                    self.dust_clouds = !self.dust_clouds;
-                    ("Эффекты пыли и дыма", self.dust_clouds)
-                }
-                3 => {
-                    self.explosions = !self.explosions;
-                    ("Взрывная волна и баллистика", self.explosions)
-                }
-                4 => {
-                    self.debris = !self.debris;
-                    ("Осколки блоков и песчинки", self.debris)
-                }
-                5 => {
-                    self.ragdoll = !self.ragdoll;
-                    ("Регдолл и спотыкание мобов", self.ragdoll)
-                }
-                6 => {
-                    self.item_physics = !self.item_physics;
-                    ("3D физика выброшенных предметов", self.item_physics)
-                }
-                7 => {
-                    self.master_enabled = !self.master_enabled;
-                    ("Общая физика мода", self.master_enabled)
-                }
-                _ => ("Неизвестно", false),
+        pub fn setting_label(idx: usize, ru: bool) -> &'static str {
+            match (idx, ru) {
+                (0, true) => "Обрушение зданий и конструкций",
+                (0, false) => "Building & structure collapse",
+                (1, true) => "Валка деревьев целиком",
+                (1, false) => "Full-tree felling",
+                (2, true) => "Эффекты пыли и дыма",
+                (2, false) => "Dust & smoke effects",
+                (3, true) => "Взрывная волна и баллистика",
+                (3, false) => "Explosion shockwave & ballistics",
+                (4, true) => "Осколки блоков и песчинки",
+                (4, false) => "Block debris & sand grains",
+                (5, true) => "Регдолл и спотыкание мобов",
+                (5, false) => "Mob ragdolls & stumbling",
+                (6, true) => "3D физика предметов",
+                (6, false) => "3D item physics",
+                (7, true) => "Общая физика мода (Master)",
+                (7, false) => "Master mod physics",
+                (_, true) => "Неизвестно",
+                (_, false) => "Unknown",
             }
         }
 
-        pub fn summary(&self) -> String {
-            let b = |v: bool| if v { "ВКЛ" } else { "ВЫКЛ" };
+        pub fn menu_rows(&self, ru: bool) -> [(&'static str, bool); 8] {
+            [
+                (Self::setting_label(0, ru), self.building_collapse),
+                (Self::setting_label(1, ru), self.tree_felling),
+                (Self::setting_label(2, ru), self.dust_clouds),
+                (Self::setting_label(3, ru), self.explosions),
+                (Self::setting_label(4, ru), self.debris),
+                (Self::setting_label(5, ru), self.ragdoll),
+                (Self::setting_label(6, ru), self.item_physics),
+                (Self::setting_label(7, ru), self.master_enabled),
+            ]
+        }
+
+        pub fn toggle_by_index(&mut self, idx: usize, ru: bool) -> (&'static str, bool) {
+            let new_val = match idx {
+                0 => {
+                    self.building_collapse = !self.building_collapse;
+                    self.building_collapse
+                }
+                1 => {
+                    self.tree_felling = !self.tree_felling;
+                    self.tree_felling
+                }
+                2 => {
+                    self.dust_clouds = !self.dust_clouds;
+                    self.dust_clouds
+                }
+                3 => {
+                    self.explosions = !self.explosions;
+                    self.explosions
+                }
+                4 => {
+                    self.debris = !self.debris;
+                    self.debris
+                }
+                5 => {
+                    self.ragdoll = !self.ragdoll;
+                    self.ragdoll
+                }
+                6 => {
+                    self.item_physics = !self.item_physics;
+                    self.item_physics
+                }
+                7 => {
+                    self.master_enabled = !self.master_enabled;
+                    self.master_enabled
+                }
+                _ => false,
+            };
+            (Self::setting_label(idx, ru), new_val)
+        }
+
+        pub fn serialize(&self) -> String {
             format!(
-                "Master:{} | Здания:{} Деревья:{} Дым:{} Взрывы:{} Осколки:{} Регдолл:{} Предметы:{} (RShift для меню)",
-                b(self.master_enabled),
-                b(self.building_collapse),
-                b(self.tree_felling),
-                b(self.dust_clouds),
-                b(self.explosions),
-                b(self.debris),
-                b(self.ragdoll),
-                b(self.item_physics),
+                "master_enabled={}\nbuilding_collapse={}\ntree_felling={}\ndust_clouds={}\nexplosions={}\ndebris={}\nragdoll={}\nitem_physics={}\ngravity={}\n",
+                self.master_enabled,
+                self.building_collapse,
+                self.tree_felling,
+                self.dust_clouds,
+                self.explosions,
+                self.debris,
+                self.ragdoll,
+                self.item_physics,
+                self.gravity,
             )
+        }
+
+        pub fn apply_str(&mut self, raw: &str) {
+            fn parse_bool(v: &str) -> Option<bool> {
+                match v.trim().to_ascii_lowercase().as_str() {
+                    "true" | "1" | "yes" | "on" => Some(true),
+                    "false" | "0" | "no" | "off" => Some(false),
+                    _ => None,
+                }
+            }
+
+            for line in raw.lines() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('#') {
+                    continue;
+                }
+                let Some((k, v)) = line.split_once('=') else {
+                    continue;
+                };
+                let key = k.trim();
+                let val = v.trim();
+                match key {
+                    "master_enabled" => if let Some(b) = parse_bool(val) { self.master_enabled = b; },
+                    "building_collapse" => if let Some(b) = parse_bool(val) { self.building_collapse = b; },
+                    "tree_felling" => if let Some(b) = parse_bool(val) { self.tree_felling = b; },
+                    "dust_clouds" => if let Some(b) = parse_bool(val) { self.dust_clouds = b; },
+                    "explosions" => if let Some(b) = parse_bool(val) { self.explosions = b; },
+                    "debris" => if let Some(b) = parse_bool(val) { self.debris = b; },
+                    "ragdoll" => if let Some(b) = parse_bool(val) { self.ragdoll = b; },
+                    "item_physics" => if let Some(b) = parse_bool(val) { self.item_physics = b; },
+                    "gravity" => {
+                        if let Ok(g) = val.parse::<f32>()
+                            && g.is_finite()
+                            && g > 0.0
+                        {
+                            self.gravity = g.clamp(1.0, 100.0);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        pub fn summary(&self, ru: bool) -> String {
+            let b = |v: bool| match (v, ru) {
+                (true, true) => "ВКЛ",
+                (false, true) => "ВЫКЛ",
+                (true, false) => "ON",
+                (false, false) => "OFF",
+            };
+            if ru {
+                format!(
+                    "Master:{} | Здания:{} Деревья:{} Дым:{} Взрывы:{} Осколки:{} Регдолл:{} Предметы:{} (RShift для меню)",
+                    b(self.master_enabled),
+                    b(self.building_collapse),
+                    b(self.tree_felling),
+                    b(self.dust_clouds),
+                    b(self.explosions),
+                    b(self.debris),
+                    b(self.ragdoll),
+                    b(self.item_physics),
+                )
+            } else {
+                format!(
+                    "Master:{} | Buildings:{} Trees:{} Dust:{} Blast:{} Debris:{} Ragdoll:{} Items:{} (RShift for menu)",
+                    b(self.master_enabled),
+                    b(self.building_collapse),
+                    b(self.tree_felling),
+                    b(self.dust_clouds),
+                    b(self.explosions),
+                    b(self.debris),
+                    b(self.ragdoll),
+                    b(self.item_physics),
+                )
+            }
         }
     }
 }
@@ -5779,7 +5894,67 @@ fn step_server_physics(game: &mut Game<'_>, vp: &mut VpWorld) {
 // 13. HOOK ENTRYPOINTS (CLIENT & INTEGRATED SERVER COORDINATED)
 // ============================================================================
 
+#[inline]
+fn server_op_matches_dim(current_dim: &str, op_dim: &str) -> bool {
+    op_dim == current_dim
+}
+
+fn drop_server_block_loot(
+    game: &mut Game<'_>,
+    pos: [i32; 3],
+    state: BlockStateId,
+    fallback_item: bool,
+) {
+    let mut drops = game.block_loot_at(pos, state, None, None);
+    if fallback_item
+        && drops.is_empty()
+        && let Some(bname) = game.native_state_block(state)
+        && !bname.contains("leaves")
+        && !bname.contains("glass")
+        && game.res.items().get(bname).is_some()
+    {
+        drops.push(ItemStack::new(bname, 1));
+    }
+    for st in drops {
+        game.pop_resource(pos, st);
+    }
+}
+
+const VP_MOD_ID: &str = "vibe_physics";
+const VP_CFG_KEY: &str = "config";
+
+#[inline]
+fn is_russian_lang() -> bool {
+    lang::code().to_ascii_lowercase().starts_with("ru")
+}
+
+fn ensure_cfg_loaded(game: &Game<'_>, cfg: &mut config::VibeConfig) {
+    if cfg.settings_loaded {
+        return;
+    }
+    cfg.settings_loaded = true;
+    if let Some(raw) = game.native_setting(VP_MOD_ID, VP_CFG_KEY) {
+        cfg.apply_str(&raw);
+    }
+}
+
+#[inline]
+fn persist_cfg(game: &Game<'_>, cfg: &config::VibeConfig) {
+    game.native_set_setting(VP_MOD_ID, VP_CFG_KEY, &cfg.serialize());
+}
+
+#[inline]
+fn on_off_label(state: bool, ru: bool) -> &'static str {
+    match (state, ru) {
+        (true, true) => "§aВКЛ",
+        (false, true) => "§cВЫКЛ",
+        (true, false) => "§aON",
+        (false, false) => "§cOFF",
+    }
+}
+
 pub(super) fn on_tick(game: &mut Game<'_>) {
+    with_vp(|vp| ensure_cfg_loaded(game, &mut vp.cfg));
     let is_client = game.options.execution_role.is_client();
 
     if !is_client {
@@ -5803,6 +5978,7 @@ pub(super) fn on_tick(game: &mut Game<'_>) {
         // they land as placed blocks or drop as items under server authority.
 
         // AUTHORITATIVE SERVER GAME THREAD: drain pending world / loot / mob ops!
+        let cur_dim = game.dim.id();
         let ops: Vec<ServerOp> = with_vp(|vp| vp.server_ops.drain(..).collect());
         for op in ops {
             match op {
@@ -5810,28 +5986,18 @@ pub(super) fn on_tick(game: &mut Game<'_>) {
                     game.native_set_block(&dim, pos, BlockStateId(0), 3);
                 }
                 ServerOp::PlaceBlockIfAir { dim, pos, state } => {
-                    let cur = game.world.block(pos[0], pos[1], pos[2]);
-                    if game.res.facts().is_air(cur) {
-                        game.native_set_block(&dim, pos, state, 3);
-                    } else {
-                        let drops = game.block_loot_at(pos, state, None, None);
-                        for st in drops {
-                            game.pop_resource(pos, st);
+                    if server_op_matches_dim(cur_dim, &dim) {
+                        let cur = game.world.block(pos[0], pos[1], pos[2]);
+                        if game.res.facts().is_air(cur) {
+                            game.native_set_block(&dim, pos, state, 3);
+                        } else {
+                            drop_server_block_loot(game, pos, state, false);
                         }
                     }
                 }
-                ServerOp::DropBlockLoot { dim: _, pos, state } => {
-                    let mut drops = game.block_loot_at(pos, state, None, None);
-                    if drops.is_empty()
-                        && let Some(bname) = game.native_state_block(state)
-                        && !bname.contains("leaves")
-                        && !bname.contains("glass")
-                        && game.res.items().get(bname).is_some()
-                    {
-                        drops.push(ItemStack::new(bname, 1));
-                    }
-                    for st in drops {
-                        game.pop_resource(pos, st);
+                ServerOp::DropBlockLoot { dim, pos, state } => {
+                    if server_op_matches_dim(cur_dim, &dim) {
+                        drop_server_block_loot(game, pos, state, true);
                     }
                 }
                 ServerOp::CrushMob {
@@ -6906,8 +7072,11 @@ pub(super) fn on_living_damage(entity: i32, _kind: &str, amount: f32) {
     });
 }
 
-pub(super) fn on_entity_tick_listened(_game: &mut Game<'_>, listened: &mut bool) {
-    let active = with_vp(|vp| vp.cfg.master_enabled && vp.cfg.item_physics);
+pub(super) fn on_entity_tick_listened(game: &mut Game<'_>, listened: &mut bool) {
+    let active = with_vp(|vp| {
+        ensure_cfg_loaded(game, &mut vp.cfg);
+        vp.cfg.master_enabled && vp.cfg.item_physics
+    });
     if active {
         *listened = true;
     }
@@ -6990,23 +7159,26 @@ pub(super) fn on_camera_shake(game: &Game<'_>, partial: f32, shake: &mut NativeS
     });
 }
 
+fn handle_menu_toggle(game: &mut Game<'_>, vp: &mut VpWorld, idx: usize, ru: bool) {
+    let (name, state) = vp.cfg.toggle_by_index(idx, ru);
+    persist_cfg(game, &vp.cfg);
+    game.native_chat(&format!(
+        "§b[VibePhysics]§r {} -> {}",
+        name,
+        on_off_label(state, ru)
+    ));
+}
+
 pub(super) fn on_hud(game: &mut Game<'_>, batch: &mut HudBatch, corners: &mut crate::extras_hud::Corners) {
+    let ru = is_russian_lang();
     with_vp(|vp| {
+        ensure_cfg_loaded(game, &mut vp.cfg);
         // Top-left debug lines removed! Clean HUD during gameplay!
         if !vp.cfg.menu_open {
             return;
         }
 
-        let items: [(&str, bool); 8] = [
-            ("Обрушение зданий и конструкций", vp.cfg.building_collapse),
-            ("Валка деревьев целиком", vp.cfg.tree_felling),
-            ("Эффекты пыли и дыма", vp.cfg.dust_clouds),
-            ("Взрывная волна и баллистика", vp.cfg.explosions),
-            ("Осколки блоков и песчинки", vp.cfg.debris),
-            ("Регдолл и спотыкание мобов", vp.cfg.ragdoll),
-            ("3D физика предметов", vp.cfg.item_physics),
-            ("Общая физика мода (Master)", vp.cfg.master_enabled),
-        ];
+        let items = vp.cfg.menu_rows(ru);
 
         let w = 340.0f32;
         let h = 168.0f32;
@@ -7022,8 +7194,18 @@ pub(super) fn on_hud(game: &mut Game<'_>, batch: &mut HudBatch, corners: &mut cr
         game.native_fill(batch, [x, y, w, 2.5], 0xFF38_BDF8);
 
         // Header
-        game.native_text(batch, "§l⚙ VIBE PHYSICS — НАСТРОЙКИ§r", [x + 10.0, y + 8.0], 0xFF_FFFF, true);
-        game.native_text(batch, "§7[RShift / Esc] Закрыть§r", [x + w - 132.0, y + 8.0], 0xAA_AAAA, true);
+        let header_title = if ru {
+            "§l⚙ VIBE PHYSICS — НАСТРОЙКИ§r"
+        } else {
+            "§l⚙ VIBE PHYSICS — SETTINGS§r"
+        };
+        let close_hint = if ru {
+            "§7[RShift / Esc] Закрыть§r"
+        } else {
+            "§7[RShift / Esc] Close§r"
+        };
+        game.native_text(batch, header_title, [x + 10.0, y + 8.0], 0xFF_FFFF, true);
+        game.native_text(batch, close_hint, [x + w - 132.0, y + 8.0], 0xAA_AAAA, true);
 
         // Header divider
         game.native_fill(batch, [x + 8.0, y + 23.0, w - 16.0, 1.0], 0x35FF_FFFF);
@@ -7040,7 +7222,12 @@ pub(super) fn on_hud(game: &mut Game<'_>, batch: &mut HudBatch, corners: &mut cr
             let num = i + 1;
             let prefix = if is_sel { "§e▶ " } else { "  " };
             let title_text = format!("{}§f[{}] {}§r", prefix, num, label);
-            let status_text = if *enabled { "§a[ ВКЛ ]§r" } else { "§c[ ВЫКЛ ]§r" };
+            let status_text = match (*enabled, ru) {
+                (true, true) => "§a[ ВКЛ ]§r",
+                (false, true) => "§c[ ВЫКЛ ]§r",
+                (true, false) => "§a[ ON  ]§r",
+                (false, false) => "§c[ OFF ]§r",
+            };
 
             let text_color = if is_sel { 0xFF_FFFF } else { 0xDD_DDDD };
             game.native_text(batch, &title_text, [x + 8.0, row_y], text_color, true);
@@ -7049,9 +7236,14 @@ pub(super) fn on_hud(game: &mut Game<'_>, batch: &mut HudBatch, corners: &mut cr
 
         // Footer divider & hint
         game.native_fill(batch, [x + 8.0, y + h - 18.0, w - 16.0, 1.0], 0x25FF_FFFF);
+        let footer_hint = if ru {
+            "§8[1-8] Переключить | [↑/↓] Выбор | [Enter] Изменить§r"
+        } else {
+            "§8[1-8] Toggle | [↑/↓] Select | [Enter] Change§r"
+        };
         game.native_text(
             batch,
-            "§8[1-8] Переключить | [↑/↓] Выбор | [Enter] Изменить§r",
+            footer_hint,
             [x + 10.0, y + h - 13.0],
             0x99_9999,
             true,
@@ -7073,19 +7265,30 @@ pub(super) fn on_key(game: &mut Game<'_>, key: &str, pressed: bool) {
         return;
     }
 
+    let ru = is_russian_lang();
+
     // Toggle menu with Right Shift
     if key == "key.keyboard.right.shift" || key.contains("right.shift") || key.contains("rshift") {
         with_vp(|vp| {
+            ensure_cfg_loaded(game, &mut vp.cfg);
             vp.cfg.menu_open = !vp.cfg.menu_open;
             if vp.cfg.menu_open {
-                game.native_chat("§b[VibePhysics]§r Меню настроек открыто (клавиши 1-8 / Стрелки+Enter / RShift для закрытия)");
+                let msg = if ru {
+                    "§b[VibePhysics]§r Меню настроек открыто (клавиши 1-8 / Стрелки+Enter / RShift для закрытия)"
+                } else {
+                    "§b[VibePhysics]§r Settings menu opened (keys 1-8 / Arrows+Enter / RShift to close)"
+                };
+                game.native_chat(msg);
             }
         });
         return;
     }
 
     // Menu interaction when open
-    let is_open = with_vp(|vp| vp.cfg.menu_open);
+    let is_open = with_vp(|vp| {
+        ensure_cfg_loaded(game, &mut vp.cfg);
+        vp.cfg.menu_open
+    });
     if is_open {
         if key == "key.keyboard.escape" || key.contains("escape") {
             with_vp(|vp| vp.cfg.menu_open = false);
@@ -7108,12 +7311,7 @@ pub(super) fn on_key(game: &mut Game<'_>, key: &str, pressed: bool) {
         if let Some(idx) = direct_toggle {
             with_vp(|vp| {
                 vp.cfg.menu_selected_idx = idx;
-                let (name, state) = vp.cfg.toggle_by_index(idx);
-                game.native_chat(&format!(
-                    "§b[VibePhysics]§r {} -> {}",
-                    name,
-                    if state { "§aВКЛ" } else { "§cВЫКЛ" }
-                ));
+                handle_menu_toggle(game, vp, idx, ru);
             });
             return;
         }
@@ -7141,12 +7339,7 @@ pub(super) fn on_key(game: &mut Game<'_>, key: &str, pressed: bool) {
         if key == "key.keyboard.enter" || key == "key.keyboard.space" || key.contains("enter") || key.contains("space") {
             with_vp(|vp| {
                 let idx = vp.cfg.menu_selected_idx;
-                let (name, state) = vp.cfg.toggle_by_index(idx);
-                game.native_chat(&format!(
-                    "§b[VibePhysics]§r {} -> {}",
-                    name,
-                    if state { "§aВКЛ" } else { "§cВЫКЛ" }
-                ));
+                handle_menu_toggle(game, vp, idx, ru);
             });
             return;
         }
@@ -7163,45 +7356,42 @@ pub(super) fn on_command(game: &mut Game<'_>, command: &str, ran: &mut bool) {
         return;
     }
 
+    let ru = is_russian_lang();
     let sub = parts.next().unwrap_or("menu");
-    let reply = with_vp(|vp| match sub {
-        "menu" => {
-            vp.cfg.menu_open = !vp.cfg.menu_open;
-            format!("Меню настроек -> {}", if vp.cfg.menu_open { "ОТКРЫТО" } else { "ЗАКРЫТО" })
+    let reply = with_vp(|vp| {
+        ensure_cfg_loaded(game, &mut vp.cfg);
+        let toggle_cmd = |idx: usize, vp: &mut VpWorld| {
+            let (label, on) = vp.cfg.toggle_by_index(idx, ru);
+            persist_cfg(game, &vp.cfg);
+            format!("{label} -> {}", on_off_label(on, ru))
+        };
+        match sub {
+            "menu" => {
+                vp.cfg.menu_open = !vp.cfg.menu_open;
+                if ru {
+                    format!("Меню настроек -> {}", if vp.cfg.menu_open { "ОТКРЫТО" } else { "ЗАКРЫТО" })
+                } else {
+                    format!("Settings menu -> {}", if vp.cfg.menu_open { "OPEN" } else { "CLOSED" })
+                }
+            }
+            "clear" => {
+                vp.clear_all();
+                if ru {
+                    "Все активные падающие конструкции, осколки и регдоллы очищены.".to_owned()
+                } else {
+                    "Cleared all active falling structures, debris, and ragdolls.".to_owned()
+                }
+            }
+            "buildings" | "house" | "collapse" => toggle_cmd(0, vp),
+            "trees" => toggle_cmd(1, vp),
+            "dust" | "smoke" => toggle_cmd(2, vp),
+            "blast" | "explosions" => toggle_cmd(3, vp),
+            "debris" => toggle_cmd(4, vp),
+            "ragdoll" => toggle_cmd(5, vp),
+            "items" => toggle_cmd(6, vp),
+            "master" | "all" => toggle_cmd(7, vp),
+            _ => vp.cfg.summary(ru),
         }
-        "clear" => {
-            vp.clear_all();
-            "Все активные падающие конструкции, осколки и регдоллы очищены.".to_owned()
-        }
-        "buildings" | "house" | "collapse" => {
-            let (_, on) = vp.cfg.toggle_by_index(0);
-            format!("Обрушение зданий и конструкций -> {}", if on { "ВКЛ" } else { "ВЫКЛ" })
-        }
-        "trees" => {
-            let (_, on) = vp.cfg.toggle_by_index(1);
-            format!("Валка деревьев -> {}", if on { "ВКЛ" } else { "ВЫКЛ" })
-        }
-        "dust" | "smoke" => {
-            let (_, on) = vp.cfg.toggle_by_index(2);
-            format!("Эффекты пыли и дыма -> {}", if on { "ВКЛ" } else { "ВЫКЛ" })
-        }
-        "blast" | "explosions" => {
-            let (_, on) = vp.cfg.toggle_by_index(3);
-            format!("Взрывная волна и баллистика -> {}", if on { "ВКЛ" } else { "ВЫКЛ" })
-        }
-        "debris" => {
-            let (_, on) = vp.cfg.toggle_by_index(4);
-            format!("Осколки блоков и песчинки -> {}", if on { "ВКЛ" } else { "ВЫКЛ" })
-        }
-        "ragdoll" => {
-            let (_, on) = vp.cfg.toggle_by_index(5);
-            format!("Регдолл и спотыкание мобов -> {}", if on { "ВКЛ" } else { "ВЫКЛ" })
-        }
-        "items" => {
-            let (_, on) = vp.cfg.toggle_by_index(6);
-            format!("3D физика выброшенных предметов -> {}", if on { "ВКЛ" } else { "ВЫКЛ" })
-        }
-        _ => vp.cfg.summary(),
     });
 
     game.native_chat(&format!("§b[VibePhysics]§r {reply}"));
@@ -7448,5 +7638,50 @@ mod dedicated_server_regression {
             listened = true;
         }
         assert!(listened, "Entity tick listener must be enabled when item physics subsystem is active");
+    }
+
+    #[test]
+    fn server_op_dim_guard_rejects_foreign_dimension() {
+        assert!(server_op_matches_dim("minecraft:overworld", "minecraft:overworld"));
+        assert!(!server_op_matches_dim("minecraft:overworld", "minecraft:the_nether"));
+        assert!(!server_op_matches_dim("minecraft:the_nether", "minecraft:the_end"));
+    }
+
+    #[test]
+    fn config_roundtrip_serialize_and_apply_preserves_toggles() {
+        let mut original = config::VibeConfig::default();
+        original.building_collapse = false;
+        original.dust_clouds = false;
+        original.ragdoll = false;
+        original.master_enabled = false;
+        original.gravity = 19.5;
+
+        let saved = original.serialize();
+        let mut restored = config::VibeConfig::default();
+        restored.apply_str(&saved);
+
+        assert_eq!(restored.master_enabled, false);
+        assert_eq!(restored.building_collapse, false);
+        assert_eq!(restored.tree_felling, true);
+        assert_eq!(restored.dust_clouds, false);
+        assert_eq!(restored.explosions, true);
+        assert_eq!(restored.debris, true);
+        assert_eq!(restored.ragdoll, false);
+        assert_eq!(restored.item_physics, true);
+        assert!((restored.gravity - 19.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn localization_labels_follow_russian_or_english() {
+        let mut cfg = config::VibeConfig::default();
+        let (label_en, new_state) = cfg.toggle_by_index(0, false);
+        assert_eq!(label_en, "Building & structure collapse");
+        assert!(!new_state);
+        assert!(cfg.summary(false).contains("Buildings:OFF"));
+
+        let (label_ru, restored_state) = cfg.toggle_by_index(0, true);
+        assert_eq!(label_ru, "Обрушение зданий и конструкций");
+        assert!(restored_state);
+        assert!(cfg.summary(true).contains("Здания:ВКЛ"));
     }
 }

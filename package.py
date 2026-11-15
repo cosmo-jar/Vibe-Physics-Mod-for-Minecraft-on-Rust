@@ -6,13 +6,13 @@ import shutil
 import zipfile
 
 MOD_ID = "vibe_physics"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 OUTPUT_FILE = "vibe_physics.hnmod"
 OUTPUT_VERSIONED = f"{MOD_ID}-{VERSION}.hnmod"
 
-# Точные ревизии коммитов клиента Horizon 26.3 и horizon-mixins из установленного инстанса
-HORIZON_REVISION = "6475f62f3c834b7489e1816bf47f47ea5eb2b879"
-MIXINS_REVISION = "d9c83d7096b7ea5b83678da2efdfd6161f74997e"
+# Точные ревизии коммитов клиента Horizon 26.3 и horizon-mixins
+HORIZON_REVISION = "9f42064c11efe7ef3e5ed2baad7ddc2a3b36eea0"
+MIXINS_REVISION = "5a64af938ec86b00d53d16a408aabc0038fb3e57"
 
 MANIFEST = {
     "game": "26.3",
@@ -32,38 +32,43 @@ def compute_sha256(path: str) -> str:
     return h.hexdigest()
 
 def package_mod():
-    print(f"[*] Сборка пакета {OUTPUT_VERSIONED} ({OUTPUT_FILE})...")
+    print(f"[*] Сборка пакета {OUTPUT_VERSIONED}...")
     mixins_source = "mixins_pkg"
     if not os.path.exists(mixins_source):
         raise RuntimeError(f"Папка {mixins_source} не найдена.")
 
-    for out in [OUTPUT_FILE, OUTPUT_VERSIONED]:
-        with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as z:
-            # 1. Корневой манифест нативного мода
-            z.writestr("horizon-native.json", json.dumps(MANIFEST, indent=2))
-            
-            # 2. Исходный код миксинов мода
-            for file in sorted(os.listdir(mixins_source)):
-                if file.endswith((".rs", ".toml")):
-                    full_path = os.path.join(mixins_source, file)
-                    zip_target = f"mixins/{MOD_ID}/{file}"
-                    z.write(full_path, zip_target)
+    # Удаляем старый дубликат без версии в корне и в папке модов, чтобы не было двух файлов
+    if os.path.exists(OUTPUT_FILE):
+        os.remove(OUTPUT_FILE)
+
+    with zipfile.ZipFile(OUTPUT_VERSIONED, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        # 1. Корневой манифест нативного мода
+        z.writestr("horizon-native.json", json.dumps(MANIFEST, indent=2))
+
+        # 2. Исходный код миксинов мода
+        for file in sorted(os.listdir(mixins_source)):
+            if file.endswith((".rs", ".toml")):
+                full_path = os.path.join(mixins_source, file)
+                zip_target = f"mixins/{MOD_ID}/{file}"
+                z.write(full_path, zip_target)
 
     size_bytes = os.path.getsize(OUTPUT_VERSIONED)
     size_kb = size_bytes / 1024
     sha256_hash = compute_sha256(OUTPUT_VERSIONED)
 
-    print(f"[+] Готово! Файлы созданы:")
-    print(f"    - {OUTPUT_VERSIONED} ({size_bytes} байт, {size_kb:.1f} КБ)")
-    print(f"    - {OUTPUT_FILE} ({size_bytes} байт, {size_kb:.1f} КБ)")
+    print(f"[+] Готово! Файл создан:")
+    print(f"    - {os.path.abspath(OUTPUT_VERSIONED)} ({size_bytes} байт, {size_kb:.1f} КБ)")
     print(f"    - SHA-256: {sha256_hash}")
 
-    # 3. Автоматическое копирование в папку модов Horizon
+    # 3. Автоматическое копирование в папку модов Horizon (только один версионный файл!)
     dest_dir = os.path.expandvars(r"%APPDATA%\horizon\horizon-native-mods")
     if os.path.exists(dest_dir):
-        shutil.copy2(OUTPUT_FILE, os.path.join(dest_dir, OUTPUT_FILE))
+        for old_name in [OUTPUT_FILE, f"{MOD_ID}-1.0.0.hnmod"]:
+            old_path = os.path.join(dest_dir, old_name)
+            if os.path.exists(old_path):
+                os.remove(old_path)
         shutil.copy2(OUTPUT_VERSIONED, os.path.join(dest_dir, OUTPUT_VERSIONED))
-        print(f"[+] Файлы успешно скопированы в {dest_dir}")
+        print(f"[+] Файл мода скопирован в {os.path.join(dest_dir, OUTPUT_VERSIONED)}")
 
     # 4. Обновление в installed.incoming (лаунчер)
     incoming_dir = os.path.expandvars(r"%APPDATA%\horizon-launcher\native\installed.incoming\vibe_physics")
